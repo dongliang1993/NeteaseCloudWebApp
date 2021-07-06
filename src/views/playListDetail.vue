@@ -1,6 +1,6 @@
 <template>
-    <div class="playList" style="margin-bottom:2.3rem;width:100%;">
-        <div class="fixed-title" :style="{'background': 'rgba(206, 61, 62, '+ opacity +')'}">
+    <div class="playList" :class="{view: songList.length > 0}">
+        <div class="fixed-title" :style="{'background': 'rgba(206, 61, 62, '+ opacity +')'}" style="transition: opacity .1s;">
             <mu-appbar>
             <mu-icon-button icon='arrow_back' @click="back" slot="left"/>
             <div class="play-title">
@@ -16,7 +16,7 @@
                 </div>
                 <div class="info-title">
                     <p class="titile">{{name}}</p>
-                    <p class="author">
+                    <p class="author" v-if="creator.avatarUrl">
                         <mu-avatar slot="left"  :src="creator.avatarUrl + '?param=50y50'" :size="30" :iconSize="20"/>
                         <span>{{creator.nickname}}</span>
                     </p>
@@ -27,32 +27,32 @@
         </div>
         <div class="playlist-holder">
             <div class="add-all">
-                <mu-flat-button label="播放全部" class="demo-flat-button" icon="add_circle_outline"/>
+                <mu-flat-button label="播放全部" class="demo-flat-button" icon="add_circle_outline" @click="playAll"/>
                 <mu-divider/>
             </div>
             <div>
               <mu-circular-progress :size="40" class="center" v-if="isloading"/>
                 <mu-list :value="value" v-show="!isloading" @change="change">
-                <div v-for="(item, index) in list" @click="playAudio(item)">
-                    <mu-list-item  :disableRipple="true" :title="item.name" :value="item.id" :describeText="item.ar[0].name">
-                        <span slot="left" class="indexStyle">{{index + 1}}</span>
-                    </mu-list-item>
-                    <mu-divider inset/>
-                </div>
+                  <div v-for="(item, index) in list" :key="item.id" @click="playAudio(item)">
+                      <mu-list-item  :disableRipple="true" :title="item.name" :value="item.id" :describeText="item.ar[0].name">
+                          <span slot="left" class="indexStyle">{{index + 1}}</span>
+                      </mu-list-item>
+                      <mu-divider inset></mu-divider>
+                  </div>
                 </mu-list>
-            </div>
-            </mu-list>
             </div>
         </div>
     </div>
 </template>
 <script>
 import api from '../api'
+import { mapGetters } from 'vuex'
 export default {
   data () {
     return {
       coverImgUrl: '../../static/default_cover.png',
       name: '歌单标题',
+      id: 0,
       fname: '歌单',
       playCount: 0,
       description: '描述描述',
@@ -69,7 +69,10 @@ export default {
   // 解除keep-alive的缓存
   beforeRouteEnter: (to, from, next) => {
     next(vm => {
-      vm.get()
+      // 根据传过来的ID是否一样，判断加载
+      if (parseInt(to.params.id) !== parseInt(vm.id)) {
+        vm.get()
+      }
       // 判断过来的路由是否带有对应的参数信息
       if (to.params.coverImg) {
          // 获取songList传入的数据
@@ -78,6 +81,7 @@ export default {
         vm.description = vm.$route.params.desc
         vm.playCount = vm.$route.params.count
         vm.creator = vm.$route.params.creator
+        vm.id = vm.$route.params.id
       }
       window.onscroll = () => {
         var opa = window.pageYOffset / 150
@@ -101,9 +105,11 @@ export default {
     },
     get () {
       this.isloading = true
-      this.$http.get(api.getPlayListDetail(this.$route.params.id)).then((res) => {
-        this.list = res.data.playlist.tracks
+      this.$http.get(api.getPlayListDetail(this.$route.params.id)).then(data => {
+        this.list = data.playlist.tracks
         this.isloading = false
+      }).catch((error) => {
+        console.log('加载歌单信息出错:' + error)
       })
     },
     change (val) {
@@ -120,7 +126,26 @@ export default {
       // 通过Vuex改变状态
       this.$store.commit('addToList', audio)
       this.$store.dispatch('getSong', audio.id)
+    },
+    // 播放全部
+    playAll () {
+      // 添加专辑内所有歌曲到一个新数组
+      let items = []
+      this.list.forEach((item) => {
+        items.push({
+          albumPic: item.al.picUrl,
+          id: item.id,
+          name: item.al.name,
+          singer: item.ar[0].name
+        })
+      })
+      this.$store.commit('addToList', items)
     }
+  },
+  computed: {
+    ...mapGetters([
+      'songList'
+    ])
   },
   filters: {
     formatCount (v) {
@@ -133,6 +158,7 @@ export default {
   }
 }
 </script>
+
 <style lang="less" scoped>
     .fixed-title {
         position: fixed;
@@ -207,7 +233,12 @@ export default {
             }
             .author {
                 span {
+                    overflow: hidden;
                     display: inline-block;
+                    height: 30px;
+                    text-overflow: ellipsis;
+                    width: 5.4rem;
+                    white-space: nowrap;
                     font-size: 14px;
                     vertical-align: top;
                     line-height: 30px;
@@ -264,5 +295,15 @@ export default {
     .center {
       display: block!important;
       margin: 10% auto 0;
+    }
+    .view {
+      width:100%;
+      margin-bottom:2.3rem;
+    }
+    .mu-item-title {
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      line-height: 1.5;
     }
 </style>

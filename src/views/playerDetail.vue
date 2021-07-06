@@ -54,13 +54,11 @@
         <div class="album-cover" :style="{'background-image':'url(' + audio.albumPic + '?param=500y500' + ')'}"></div>
         <div class="cover-mask" style="opacity:0.6;"></div>
       </div>
-      <toast ref="toast"></toast>
       <BottomSheet ref="bottomSheet"></BottomSheet>
     </div>
 </template>
 <script>
 import { mapGetters, mapMutations } from 'vuex'
-import Toast from '../components/toast'
 import BottomSheet from '../components/list'
 import api from '../api'
 export default {
@@ -72,13 +70,14 @@ export default {
     }
   },
   components: {
-    Toast,
     BottomSheet
   },
   beforeRouteEnter: (to, from, next) => {
     // 这里判断是否重复打开的同一个歌曲页面
     next(vm => {
-      vm.loadLrc(vm.audio.id)
+      if (parseInt(to.params.id) !== parseInt(vm.audio.id) || vm.lyric === '') {
+        vm.loadLrc(vm.audio.id)
+      }
     })
   },
   watch: {
@@ -106,27 +105,26 @@ export default {
       this.$store.commit('setChange', true)
     },
     loadLrc (id) {
-      var self = this
       this.afterLrc = [{'txt': '正在加载中...'}]
       if (!id) {
         this.afterLrc = [{'txt': '这里显示歌词哦！'}]
         return
       }
-      this.$http.get(api.getLrc(id)).then((res) => {
+      this.$http.get(api.getLrc(id)).then((data) => {
         // 1、先判断是否有歌词
-        if (res.data.nolyric) {
+        if (!data.lrc.lyric) {
           this.afterLrc = [{'txt': '(⊙０⊙) 暂无歌词'}]
         } else {
-          this.lyric = res.data.lrc.lyric
+          this.lyric = data.lrc.lyric
           this.getLrc()
         }
       }, (res) => {
         console.log('lrc fail')
-         this.afterLrc = [{'txt': '加载歌词失败'}]
+        this.afterLrc = [{'txt': '加载歌词失败'}]
       })
       .catch(function (error) {
         console.log(error)
-        self.afterLrc = [{'txt': '(⊙０⊙) 暂无歌词'}]
+        this.afterLrc = [{'txt': '(⊙０⊙) 暂无歌词'}]
       })
     },
     getLrc () {
@@ -172,10 +170,16 @@ export default {
       'currentTime',
       'bufferedTime',
       'durationTime',
-      'prCurrentTime',
       'audio',
       'playing'
     ]),
+    prCurrentTime: {
+      get: function () {
+        return this.$store.getters.prCurrentTime
+      },
+      set: function (newVal) {
+      }
+    },
     lrcOffset () {
       if (this.afterLrc) {
         // 1、根据时间获得歌词
@@ -492,4 +496,11 @@ export default {
     0% { transform: rotate(0deg);}
     100% { transform: rotate(360deg);}
   }
+
+   .fade-enter-active {
+      transition: all .4s;
+    }
+    .fade-enter {
+      transform: translate(100%, 0);
+    }
 </style>
